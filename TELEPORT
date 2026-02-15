@@ -1,0 +1,258 @@
+-- ====== Teleport GUI with Notification & Sounds ======
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- ====== ScreenGui ======
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TeleportGUI"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+
+-- ====== Main Frame ======
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.fromOffset(300, 400)
+MainFrame.Position = UDim2.fromScale(0.7, 0.2)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame)
+
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Thickness = 2
+Stroke.Color = Color3.fromRGB(80, 80, 80)
+
+-- ====== Tween Presets ======
+local tweenIn = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local tweenOut = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+
+-- ====== Header ======
+local HeaderBar = Instance.new("Frame")
+HeaderBar.Size = UDim2.new(1, 0, 0, 35)
+HeaderBar.Position = UDim2.fromOffset(0, 0)
+HeaderBar.BackgroundTransparency = 1
+HeaderBar.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -70, 1, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Teleport to Player"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Parent = HeaderBar
+
+local ButtonsFrame = Instance.new("Frame")
+ButtonsFrame.Size = UDim2.fromOffset(70, 30)
+ButtonsFrame.Position = UDim2.new(1, -70, 0.5, -15)
+ButtonsFrame.BackgroundTransparency = 1
+ButtonsFrame.Parent = HeaderBar
+
+local BtnLayout = Instance.new("UIListLayout", ButtonsFrame)
+BtnLayout.FillDirection = Enum.FillDirection.Horizontal
+BtnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+BtnLayout.Padding = UDim.new(0, 4)
+
+-- Minimize button
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.fromOffset(30, 30)
+MinimizeBtn.Text = "–"
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+MinimizeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+MinimizeBtn.BorderSizePixel = 0
+MinimizeBtn.Parent = ButtonsFrame
+Instance.new("UICorner", MinimizeBtn)
+
+-- Close button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.fromOffset(30, 30)
+CloseBtn.Text = "X"
+CloseBtn.BackgroundColor3 = Color3.fromRGB(120,40,40)
+CloseBtn.TextColor3 = Color3.fromRGB(255,255,255)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Parent = ButtonsFrame
+Instance.new("UICorner", CloseBtn)
+
+-- ====== Search Box ======
+local SearchBox = Instance.new("TextBox")
+SearchBox.Size = UDim2.fromOffset(280, 28)
+SearchBox.Position = UDim2.fromOffset(10, 40)
+SearchBox.PlaceholderText = "Search player..."
+SearchBox.ClearTextOnFocus = false
+SearchBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
+SearchBox.TextColor3 = Color3.fromRGB(255,255,255)
+SearchBox.BorderSizePixel = 0
+SearchBox.Parent = MainFrame
+Instance.new("UICorner", SearchBox)
+
+local SearchStroke = Instance.new("UIStroke", SearchBox)
+SearchStroke.Thickness = 1
+SearchStroke.Color = Color3.fromRGB(90,90,90)
+
+-- ====== Scroll Frame ======
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, -10, 1, -80)
+Scroll.Position = UDim2.fromOffset(5, 75)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.CanvasSize = UDim2.new(0,0,0,0)
+Scroll.Parent = MainFrame
+
+local Layout = Instance.new("UIListLayout", Scroll)
+Layout.Padding = UDim.new(0, 4)
+
+-- ====== Notification ======
+local Notification = Instance.new("Frame", ScreenGui)
+Notification.Size = UDim2.fromOffset(260, 70)
+Notification.Position = UDim2.fromScale(-0.4, 0.85)
+Notification.BackgroundColor3 = Color3.fromRGB(25,25,25)
+Notification.BorderSizePixel = 0
+Notification.Visible = false
+Instance.new("UICorner", Notification)
+
+local NotifText = Instance.new("TextLabel", Notification)
+NotifText.Size = UDim2.new(1, -40, 1, -10)
+NotifText.Position = UDim2.fromOffset(10, 5)
+NotifText.BackgroundTransparency = 1
+NotifText.TextWrapped = true
+NotifText.TextScaled = true
+NotifText.TextColor3 = Color3.fromRGB(230,230,230)
+NotifText.Text = "UI hidden\nPress Right Shift to reopen"
+
+local NotifClose = Instance.new("TextButton", Notification)
+NotifClose.Size = UDim2.fromOffset(24, 24)
+NotifClose.Position = UDim2.fromOffset(230, 5)
+NotifClose.Text = "X"
+NotifClose.BackgroundColor3 = Color3.fromRGB(100,40,40)
+NotifClose.TextColor3 = Color3.fromRGB(255,255,255)
+NotifClose.BorderSizePixel = 0
+Instance.new("UICorner", NotifClose)
+
+-- ====== Sounds ======
+local TypingSound = Instance.new("Sound", ScreenGui)
+TypingSound.SoundId = "rbxassetid://133003979061644"
+TypingSound.Volume = 0.6
+
+local MinimizeSound = Instance.new("Sound", ScreenGui)
+MinimizeSound.SoundId = "rbxassetid://131639624315532"
+MinimizeSound.Volume = 0.8
+
+-- ====== Typing VFX ======
+local lastType = 0
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local now = os.clock()
+    if now - lastType < 0.04 then return end
+    lastType = now
+    TypingSound:Play()
+    TweenService:Create(SearchStroke, TweenInfo.new(0.08), {Color = Color3.fromRGB(0,170,255)}):Play()
+    task.delay(0.08, function()
+        TweenService:Create(SearchStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(90,90,90)}):Play()
+    end)
+end)
+
+-- ====== Teleport Function ======
+local function teleportToPlayer(targetPlayer)
+    local character = LocalPlayer.Character
+    local targetChar = targetPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") and targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.CFrame = targetChar.HumanoidRootPart.CFrame + Vector3.new(0,3,0)
+        print("Teleported to "..targetPlayer.Name)
+    else
+        warn("Teleport failed: Character not loaded")
+    end
+end
+
+-- ====== Populate Player List ======
+local function refreshPlayerList()
+    for _, child in ipairs(Scroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    local query = SearchBox.Text:lower()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and (query == "" or string.find(player.Name:lower(), query, 1, true)) then
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, 0, 0, 30)
+            btn.Text = player.Name
+            btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+            btn.TextColor3 = Color3.fromRGB(255,255,255)
+            btn.BorderSizePixel = 0
+            btn.Parent = Scroll
+            Instance.new("UICorner", btn)
+            btn.MouseButton1Click:Connect(function() teleportToPlayer(player) end)
+        end
+    end
+    Scroll.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y)
+end
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(refreshPlayerList)
+Players.PlayerAdded:Connect(refreshPlayerList)
+Players.PlayerRemoving:Connect(refreshPlayerList)
+
+-- ====== Minimize / Close with Tween & Notification ======
+local uiVisible = true
+local savedPos = MainFrame.Position
+
+local function hideUI()
+    if not uiVisible then return end
+    uiVisible = false
+    MinimizeSound:Play()
+    TweenService:Create(MainFrame, tweenOut, {Position = UDim2.fromScale(-0.5, savedPos.Y.Scale)}):Play()
+    task.delay(0.35, function()
+        MainFrame.Visible = false
+        Notification.Visible = true
+        TweenService:Create(Notification, tweenIn, {Position = UDim2.fromScale(0.7, 0.8)}):Play()
+    end)
+end
+
+local function showUI()
+    if uiVisible then return end
+    Notification.Visible = false
+    MainFrame.Visible = true
+    MainFrame.Position = UDim2.fromScale(-0.5, savedPos.Y.Scale)
+    TweenService:Create(MainFrame, tweenIn, {Position = savedPos}):Play()
+    uiVisible = true
+end
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    if uiVisible then hideUI() else showUI() end
+end)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+NotifClose.MouseButton1Click:Connect(function() Notification.Visible=false end)
+
+-- ====== Right Shift Toggle ======
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        if uiVisible then hideUI() else showUI() end
+    end
+end)
+
+-- ====== Chat Command (!goto) ======
+local function findPlayerByName(str)
+    str = str:lower()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Name:lower():find(str) then
+            return p
+        end
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    if msg:sub(1,6):lower() == "!goto " then
+        local targetName = msg:sub(7)
+        local target = findPlayerByName(targetName)
+        if target then
+            teleportToPlayer(target)
+        else
+            warn("Player not found")
+        end
+    end
+end)
+
+-- ====== Start ======
+refreshPlayerList()

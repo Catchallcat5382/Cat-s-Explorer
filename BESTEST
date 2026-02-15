@@ -9,14 +9,22 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
--- ================= Roots =================
+-- ================= Roots (Manual Selection) =================
 local ROOTS = {
-	workspace,
-	game:GetService("ReplicatedStorage"),
-	game:GetService("Players"),
-	game:GetService("Lighting"),
-	game:GetService("SoundService"),
-	game:GetService("ServerStorage"),
+    game:GetService("Workspace"),
+    game:GetService("Players"),
+    game:GetService("Lighting"),
+    game:GetService("MaterialService"),
+    game:GetService("ReplicatedFirst"),
+    game:GetService("ReplicatedStorage"),
+    game:GetService("ServerScriptService"),
+    game:GetService("ServerStorage"),
+    game:GetService("StarterGui"),
+    game:GetService("StarterPack"),
+    game:GetService("StarterPlayer"),
+    game:GetService("Teams"),
+    game:GetService("SoundService"),
+    game:GetService("TextChatService"),
 }
 
 -- ================= ScreenGui =================
@@ -28,7 +36,7 @@ ScreenGui.ResetOnSpawn = false
 -- ================= Main Window =================
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.fromOffset(420, 500)
-Main.Position = UDim2.fromScale(0.03, 0.15) -- instant load
+Main.Position = UDim2.fromScale(0.03, 0.15)
 Main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -289,17 +297,26 @@ UserInputService.InputBegan:Connect(function(input,gpe)
 	end
 end)
 
+-- ================= Navigation Buttons (Fixed) =================
 Back.MouseButton1Click:Connect(function()
-	if #history>0 then
+	if #history > 0 then
+		-- Inside a folder
 		currentInstance = table.remove(history)
+		SearchBox.Text=""
+		refresh()
+	else
+		-- At root, go to previous root
+		history = {}
+		currentRootIndex = (currentRootIndex - 2) % #ROOTS + 1 -- wrap-around
+		currentInstance = ROOTS[currentRootIndex]
 		SearchBox.Text=""
 		refresh()
 	end
 end)
 
 NextRoot.MouseButton1Click:Connect(function()
-	history={}
-	currentRootIndex = currentRootIndex%#ROOTS+1
+	history = {}
+	currentRootIndex = currentRootIndex % #ROOTS + 1
 	currentInstance = ROOTS[currentRootIndex]
 	SearchBox.Text=""
 	refresh()

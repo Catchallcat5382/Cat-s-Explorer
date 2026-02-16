@@ -233,63 +233,109 @@ Players.PlayerRemoving:Connect(refreshPlayers)
 refreshPlayers()
 
 -- =========================================================
--- FLY
+-- SMOOTH SAFE FLY (MM2-STYLE)
 -- =========================================================
 local flying = false
 local flyConn
-local flySpeed = 50
+local bv, bg
+local flySpeed = 40
+local accel = 6
+local currentVel = Vector3.zero
 
-local function fly()
-    if flying then return end
-    local c = LocalPlayer.Character
-    if not c then return end
-    local hrp = c:FindFirstChild("HumanoidRootPart")
-    local hum = c:FindFirstChild("Humanoid")
-    if not hrp or not hum then return end
-    flying = true
-    hum.PlatformStand = true
-
-    flyConn = RunService.RenderStepped:Connect(function()
-        local cam = workspace.CurrentCamera
-        local dir = Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.yAxis end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.yAxis end
-        hrp.Velocity = dir.Magnitude > 0 and dir.Unit * flySpeed or Vector3.zero
-    end)
-end
-
-local function unfly()
+local function stopFly()
     flying = false
-    if flyConn then flyConn:Disconnect() end
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+
+    if flyConn then
+        flyConn:Disconnect()
+        flyConn = nil
+    end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+    if bv then bv:Destroy() bv = nil end
+    if bg then bg:Destroy() bg = nil end
+    currentVel = Vector3.zero
+
     if hum then hum.PlatformStand = false end
 end
 
+local function startFly()
+    if flying then return end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not (char and hrp and hum) then return end
+
+    flying = true
+    hum.PlatformStand = true
+
+    bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bv.Velocity = Vector3.zero
+    bv.Parent = hrp
+
+    bg = Instance.new("BodyGyro")
+    bg.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    bg.P = 9000
+    bg.CFrame = hrp.CFrame
+    bg.Parent = hrp
+
+    flyConn = RunService.RenderStepped:Connect(function(dt)
+        if not flying then return end
+
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.zero
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.yAxis end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.yAxis end
+
+        if moveDir.Magnitude > 0 then
+            moveDir = moveDir.Unit * flySpeed
+        end
+
+        currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
+        bv.Velocity = currentVel
+        bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+    end)
+end
+
+-- safety cleanup
+LocalPlayer.CharacterAdded:Connect(stopFly)
+
+-- =========================================================
+-- FLY UI BUTTONS
+-- =========================================================
 local FlyBtn = Instance.new("TextButton", FlyFrame)
 FlyBtn.Size = UDim2.new(1,0,0,40)
 FlyBtn.Text = "Fly"
 FlyBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
 FlyBtn.TextColor3 = Color3.new(1,1,1)
 Instance.new("UICorner", FlyBtn)
-FlyBtn.MouseButton1Click:Connect(fly)
 
-local UnflyBtn = FlyBtn:Clone()
-UnflyBtn.Text = "Unfly"
-UnflyBtn.Position = UDim2.fromOffset(0,45)
-UnflyBtn.Parent = FlyFrame
-UnflyBtn.MouseButton1Click:Connect(unfly)
+FlyBtn.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+        FlyBtn.Text = "Fly"
+    else
+        startFly()
+        FlyBtn.Text = "Unfly"
+    end
+end)
 
 -- =========================================================
--- MISC (INVIS / ESP / SERVER)
+-- MISC (FLING ME / ESP / SERVER)
 -- =========================================================
-local invis = false
+local flingme = false
 local savedTransparency = {}
 
-local function setInvis(state)
+local function setFlingMe(state)
     local c = LocalPlayer.Character
     if not c then return end
     for _,v in ipairs(c:GetDescendants()) do
@@ -317,9 +363,9 @@ local function mkBtn(txt,y,cb)
     b.MouseButton1Click:Connect(cb)
 end
 
-mkBtn("Toggle Invisibility",0,function()
-    invis = not invis
-    setInvis(invis)
+mkBtn("Toggle Fling Me",0,function()
+    flingme = not flingme
+    setFlingMe(flingme)
 end)
 
 -- ESP
@@ -470,8 +516,8 @@ LocalPlayer.Chatted:Connect(function(msg)
     end
 
     if cmd == "!unorbit" then orbiting = false end
-    if cmd == "!invis" then invis = true; setInvis(true) end
-    if cmd == "!vis" then invis = false; setInvis(false) end
+	if cmd == "!flingme" then flingme = true; setFlingMe(true) end
+	if cmd == "!unflingme" then flingme = false; setFlingMe(false) end
 
     if cmd == "!esp" then
         espEnabled = true

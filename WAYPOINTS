@@ -17,6 +17,9 @@ end)
 
 -- ================= WAYPOINT GROUPS =================
 local WaypointGroups = {
+	["MM2"] = {
+		["Spawn"] = Vector3.new(361.682, 521.775, -13.196),
+	},
 
     ["Write a letter"] = {
         ["Pink Room"] = Vector3.new(-1536.202, 4.615, -661.972),
@@ -214,21 +217,49 @@ Search:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- ================= CHAT COMMAND =================
+-- ================= CHAT COMMAND (SECTION + WAYPOINT) =================
+local function normalize(str)
+    return str:lower():gsub("%s+", "")
+end
+
 LocalPlayer.Chatted:Connect(function(msg)
-    local cmd, rest = msg:lower():match("^!(%S+)%s*(.*)")
-    if cmd == "waypoint" and rest ~= "" then
-        for _, group in pairs(WaypointGroups) do
-            for name, pos in pairs(group) do
-                if name:lower() == rest then
+    if msg:sub(1,1) ~= "!" then return end
+
+    local words = {}
+    for w in msg:sub(2):gmatch("%S+") do
+        table.insert(words, w)
+    end
+
+    if normalize(words[1]) ~= "waypoint" then return end
+    if #words < 3 then
+        notify("Usage: !waypoint <section> <waypoint>")
+        return
+    end
+
+    -- everything after command: section + waypoint
+    local args = table.concat(words, " ", 2)
+    local normArgs = normalize(args)
+
+    for groupName, group in pairs(WaypointGroups) do
+        local normGroup = normalize(groupName)
+
+        if normArgs:sub(1, #normGroup) == normGroup then
+            local waypointPart = normalize(normArgs:sub(#normGroup + 1))
+
+            for waypointName, pos in pairs(group) do
+                if normalize(waypointName) == waypointPart then
                     teleportTo(pos)
-                    notify("Teleported to " .. name)
+                    notify("Teleported to " .. groupName .. " → " .. waypointName)
                     return
                 end
             end
+
+            notify("Waypoint not found in " .. groupName)
+            return
         end
-        notify("Waypoint not found")
     end
+
+    notify("Section not found")
 end)
 
 -- ================= MINIMIZE =================

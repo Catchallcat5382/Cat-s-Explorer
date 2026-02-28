@@ -14,7 +14,7 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 
 -- ================= FLY KEY TOGGLE =================
-local FLY_TOGGLE_KEY = Enum.KeyCode.X
+local FLY_TOGGLE_KEY = Enum.KeyCode.Z
 
 -- ================= CHAT FOCUS CHECK =================
 local function isTyping()

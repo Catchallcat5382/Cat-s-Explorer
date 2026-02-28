@@ -15,11 +15,20 @@ local HttpService = game:GetService("HttpService")
 
 -- ================= FLY KEY TOGGLE =================
 local FLY_TOGGLE_KEY = Enum.KeyCode.Z
-local FLY_KEYCODE = Enum.KeyCode.Z
 
 -- ================= CHAT FOCUS CHECK =================
 local function isTyping()
 	return UserInputService:GetFocusedTextBox() ~= nil
+end
+
+-- ================= CONNECTION TRACKER =================
+local Connections = {}
+
+local function track(conn)
+	if typeof(conn) == "RBXScriptConnection" then
+		table.insert(Connections, conn)
+	end
+	return conn
 end
 
 -- ================= CLEAN OLD GUI =================
@@ -163,7 +172,36 @@ local function teleportTo(p)
     end
 end
 
-RunService.Heartbeat:Connect(function(dt)
+-- ================= FULL SHUTDOWN =================
+local shuttingDown = false
+
+local function shutdown()
+	if shuttingDown then return end
+	shuttingDown = true
+
+	-- stop gameplay systems
+	pcall(stopFly)
+	looping = false
+	orbiting = false
+	flingme = false
+	espEnabled = false
+	pcall(clearESP)
+
+	-- disconnect tracked connections
+	for _,c in ipairs(Connections) do
+		pcall(function() c:Disconnect() end)
+	end
+	table.clear(Connections)
+
+	-- destroy gui last
+	pcall(function()
+		if ScreenGui then
+			ScreenGui:Destroy()
+		end
+	end)
+end
+
+track(RunService.Heartbeat:Connect(function(dt)
     if looping and loopTarget then teleportTo(loopTarget) end
     if orbiting and orbitTarget and orbitTarget.Character then
         local hrp = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
@@ -180,7 +218,7 @@ RunService.Heartbeat:Connect(function(dt)
             )
         end
     end
-end)
+end))  -- ✅ closes Connect AND track
 
 local OrbitBtn = Instance.new("TextButton", TeleportFrame)
 OrbitBtn.Size = UDim2.new(1,0,0,28)
@@ -229,8 +267,8 @@ local function refreshPlayers()
 end
 
 SearchBox:GetPropertyChangedSignal("Text"):Connect(refreshPlayers)
-Players.PlayerAdded:Connect(refreshPlayers)
-Players.PlayerRemoving:Connect(refreshPlayers)
+track(Players.PlayerAdded:Connect(refreshPlayers))
+track(Players.PlayerRemoving:Connect(refreshPlayers))
 refreshPlayers()
 
 -- =========================================================
@@ -268,7 +306,7 @@ end
 		bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
 		bg.P = 9000
 
-		flyConn = RunService.RenderStepped:Connect(function(dt)
+		flyConn = track(RunService.RenderStepped:Connect(function(dt)
 		-- 🚫 STOP MOVEMENT WHILE TYPING / CHATTING
 		if isTyping() then
 			currentVel = Vector3.zero
@@ -292,11 +330,11 @@ end
 
 		currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
 		bv.Velocity = currentVel
-		bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
-	end)
+        bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+    end))
 end
 
-LocalPlayer.CharacterAdded:Connect(stopFly)
+track(LocalPlayer.CharacterAdded:Connect(stopFly))
 
 -- ================= FLY UI =================
 local FlyBtn = Instance.new("TextButton", FlyFrame)
@@ -494,22 +532,25 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    stopFly()
-    looping, orbiting, flingme, espEnabled = false,false,false,false
-    clearESP()
-    ScreenGui:Destroy()
+	shutdown()
 end)
 
-UserInputService.InputBegan:Connect(function(input, gp)
-	-- keys that bypass gp
+track(ScreenGui.AncestryChanged:Connect(function(_, parent)
+	if not parent then
+		shutdown()
+	end
+end))
+
+track(UserInputService.InputBegan:Connect(function(input, gp)
+	-- keys that MUST bypass gp
 	local isUiKey =
 		input.KeyCode == Enum.KeyCode.RightShift
 		or input.KeyCode == Enum.KeyCode.LeftAlt
 
 	local isFlyKey =
-		input.KeyCode == FLY_KEYCODE
+		input.KeyCode == FLY_TOGGLE_KEY
 
-	-- block Roblox-consumed input EXCEPT our keys
+	-- block everything else Roblox consumed
 	if gp and not (isUiKey or isFlyKey) then return end
 
 	-- block typing
@@ -528,7 +569,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 		return
 	end
 
-	-- ================= FLY TOGGLE (Z ONLY) =================
+	-- ================= FLY TOGGLE =================
 	if isFlyKey then
 		if flying then
 			stopFly()
@@ -544,7 +585,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	if input.KeyCode == Enum.KeyCode.E then
 		return
 	end
-end)
+end))
 
 -- =========================================================
 -- CHAT COMMANDS (FULLY SYNCED)
@@ -558,7 +599,7 @@ local function findPlayerByName(partial)
     end
 end
 
-LocalPlayer.Chatted:Connect(function(msg)
+track(LocalPlayer.Chatted:Connect(function(msg)
     local a = msg:lower():split(" ")
 
     if a[1] == "!fly" then
@@ -580,4 +621,4 @@ LocalPlayer.Chatted:Connect(function(msg)
     if a[1] == "!unesp" then espEnabled = false; clearESP() end
     if a[1] == "!rejoin" then TeleportService:Teleport(game.PlaceId, LocalPlayer) end
     if a[1] == "!refresh" and LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
-end)
+end))

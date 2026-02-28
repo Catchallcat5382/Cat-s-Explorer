@@ -13,6 +13,14 @@ local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 
+-- ================= FLY KEY TOGGLE =================
+local FLY_TOGGLE_KEY = Enum.KeyCode.Q
+
+-- ================= CHAT FOCUS CHECK =================
+local function isTyping()
+	return UserInputService:GetFocusedTextBox() ~= nil
+end
+
 -- ================= CLEAN OLD GUI =================
 pcall(function()
     CoreGui:FindFirstChild("CatTeleportGUI"):Destroy()
@@ -242,37 +250,49 @@ local function stopFly()
     if hum then hum.PlatformStand = false end
 end
 
-local function startFly()
-    if flying then return end
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not (char and hrp and hum) then return end
+	local function startFly()
+		if flying then return end
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not (char and hrp and hum) then return end
 
-    flying = true
-    hum.PlatformStand = true
+		flying = true
+		hum.PlatformStand = true
 
-    bv = Instance.new("BodyVelocity", hrp)
-    bv.MaxForce = Vector3.new(1e5,1e5,1e5)
+		bv = Instance.new("BodyVelocity", hrp)
+		bv.MaxForce = Vector3.new(1e5,1e5,1e5)
 
-    bg = Instance.new("BodyGyro", hrp)
-    bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
-    bg.P = 9000
+		bg = Instance.new("BodyGyro", hrp)
+		bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
+		bg.P = 9000
 
-    flyConn = RunService.RenderStepped:Connect(function(dt)
-        local cam = workspace.CurrentCamera
-        local moveDir = Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.yAxis end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.yAxis end
-        if moveDir.Magnitude > 0 then moveDir = moveDir.Unit * flySpeed end
-        currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
-        bv.Velocity = currentVel
-        bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
-    end)
+		flyConn = RunService.RenderStepped:Connect(function(dt)
+		-- 🚫 STOP MOVEMENT WHILE TYPING / CHATTING
+		if isTyping() then
+			currentVel = Vector3.zero
+			bv.Velocity = Vector3.zero
+			return
+		end
+
+		local cam = workspace.CurrentCamera
+		local moveDir = Vector3.zero
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.yAxis end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.yAxis end
+
+		if moveDir.Magnitude > 0 then
+			moveDir = moveDir.Unit * flySpeed
+		end
+
+		currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
+		bv.Velocity = currentVel
+		bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+	end)
 end
 
 LocalPlayer.CharacterAdded:Connect(stopFly)
@@ -302,55 +322,6 @@ SpeedBox.FocusLost:Connect(function()
     local n = tonumber(SpeedBox.Text)
     if n then flySpeed = math.clamp(n,10,300) end
     SpeedBox.Text = tostring(flySpeed)
-end)
-
--- ================= ANTI FLING (SMART) =================
-local antiFlingEnabled = false
-local antiFlingConn
-
-local MAX_HORIZONTAL_SPEED = 80
-local MAX_VERTICAL_SPEED = 120
-
-local function startAntiFling()
-	if antiFlingConn then return end
-
-	antiFlingConn = RunService.Heartbeat:Connect(function()
-		if not antiFlingEnabled then return end
-
-		local char = LocalPlayer.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if not (hrp and hum) then return end
-
-		-- Ignore intentional jumping
-		if hum:GetState() == Enum.HumanoidStateType.Jumping then
-			return
-		end
-
-		local vel = hrp.AssemblyLinearVelocity
-		local horizontal = Vector3.new(vel.X, 0, vel.Z).Magnitude
-		local vertical = math.abs(vel.Y)
-
-		if horizontal > MAX_HORIZONTAL_SPEED or vertical > MAX_VERTICAL_SPEED then
-			hrp.AssemblyLinearVelocity = Vector3.zero
-			hrp.AssemblyAngularVelocity = Vector3.zero
-		end
-	end)
-end
-
-local function stopAntiFling()
-	antiFlingEnabled = false
-	if antiFlingConn then
-		antiFlingConn:Disconnect()
-		antiFlingConn = nil
-	end
-end
-
-LocalPlayer.CharacterAdded:Connect(function()
-	if antiFlingEnabled then
-		task.wait(1)
-		startAntiFling()
-	end
 end)
 
 -- =========================================================
@@ -438,15 +409,6 @@ mkBtn("Server Hop",200,function()
     end
 end)
 
-mkBtn("Toggle Anti Fling",250,function()
-	antiFlingEnabled = not antiFlingEnabled
-	if antiFlingEnabled then
-		startAntiFling()
-	else
-		stopAntiFling()
-	end
-end)
-
 -- =========================================================
 -- TAB SWITCH
 -- =========================================================
@@ -506,11 +468,42 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-	stopFly()
-	stopAntiFling()
-	looping, orbiting, flingme, espEnabled = false,false,false,false
-	clearESP()
-	ScreenGui:Destroy()
+    stopFly()
+    looping, orbiting, flingme, espEnabled = false,false,false,false
+    clearESP()
+    ScreenGui:Destroy()
+end)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+
+	-- Q TOGGLE FLY
+	if input.KeyCode == FLY_TOGGLE_KEY then
+		if flying then
+			stopFly()
+			FlyBtn.Text = "Fly"
+		else
+			startFly()
+			FlyBtn.Text = "Unfly"
+		end
+		return
+	end
+
+	-- E DOES NOTHING (explicit block)
+	if input.KeyCode == Enum.KeyCode.E then
+		return
+	end
+
+	-- EXISTING UI TOGGLE (KEEP THIS)
+	if input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.LeftAlt then
+		uiVisible = not uiVisible
+		MainFrame.Visible = uiVisible
+		Notification.Visible = not uiVisible
+		if not uiVisible then
+			play(MinimizeSound)
+			play(NotifSound)
+		end
+	end
 end)
 
 UserInputService.InputBegan:Connect(function(i,gp)

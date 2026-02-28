@@ -16,6 +16,8 @@ local HttpService = game:GetService("HttpService")
 -- ================= FLY KEY TOGGLE =================
 local FLY_TOGGLE_KEY = Enum.KeyCode.Z
 
+local SCRIPT_CLOSED = false
+
 -- ================= CHAT FOCUS CHECK =================
 local function isTyping()
 	return UserInputService:GetFocusedTextBox() ~= nil
@@ -241,17 +243,34 @@ local flySpeed, accel = 40, 6
 local currentVel = Vector3.zero
 
 local function stopFly()
-    flying = false
-    if flyConn then flyConn:Disconnect() flyConn = nil end
-    if bv then bv:Destroy() bv = nil end
-    if bg then bg:Destroy() bg = nil end
-    currentVel = Vector3.zero
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hum.PlatformStand = false end
+	flying = false
+
+	if flyConn then
+		flyConn:Disconnect()
+		flyConn = nil
+	end
+
+	if bv then
+		bv:Destroy()
+		bv = nil
+	end
+
+	if bg then
+		bg:Destroy()
+		bg = nil
+	end
+
+	currentVel = Vector3.zero
+
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.PlatformStand = false
+	end
 end
 
 	local function startFly()
-		if flying then return end
+		if flying or SCRIPT_CLOSED then return end
 		local char = LocalPlayer.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -528,10 +547,24 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    stopFly()
-    looping, orbiting, flingme, espEnabled = false,false,false,false
-    clearESP()
-    ScreenGui:Destroy()
+	SCRIPT_CLOSED = true -- 🔒 HARD LOCK EVERYTHING
+
+	stopFly() -- FORCE STOP MID-FLIGHT
+
+	looping = false
+	orbiting = false
+	flingme = false
+	espEnabled = false
+
+	clearESP()
+
+	-- safety: remove humanoid lock if something went wrong
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.PlatformStand = false
+	end
+
+	ScreenGui:Destroy()
 end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
@@ -563,7 +596,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 
 	-- ================= FLY TOGGLE =================
-	if isFlyKey then
+	if isFlyKey and not SCRIPT_CLOSED then
 		if flying then
 			stopFly()
 			FlyBtn.Text = "Fly"
@@ -595,7 +628,7 @@ end
 LocalPlayer.Chatted:Connect(function(msg)
     local a = msg:lower():split(" ")
 
-    if a[1] == "!fly" then
+	if a[1] == "!fly" and not SCRIPT_CLOSED then
         if a[2] then
             local n = tonumber(a[2])
             if n then flySpeed = math.clamp(n,10,300); SpeedBox.Text = flySpeed end
